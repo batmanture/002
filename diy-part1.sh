@@ -10,9 +10,47 @@
 # Description: OpenWrt DIY script part 1 (Before Update feeds)
 #
 
-# Uncomment a feed source
-#sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
+ sudo apt-get install pigz
 
-# Add a feed source
-#echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-#echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
+
+# 替换原 svn 命令
+function git_sparse_clone() {
+  branch="$1" rurl="$2" && shift 2
+  git clone --depth=1 -b $branch --single-branch $rurl
+  repo=$(echo $rurl | awk -F '/' '{print $(NF)}')
+  cd $repo && mv -f $@ ../package
+  cd .. && rm -rf $repo
+}
+
+
+# git clone  https://github.com/QiuSimons/openwrt-mos.git package/luci-app-mosdns
+
+# sed -i "s/127.0.0.1/127.0.0.1:5335/g"   package/luci-app-mosdns/root/etc/mosdns/set.sh
+
+# 添加SSR-Plus
+rm -rf package/luci-app-ssr-plus
+# git clone https://github.com/fw876/helloworld.git package/luci-app-ssr-plus
+git clone --depth=1 -b main https://github.com/fw876/helloworld package/luci-app-ssr-plus
+# 添加PassWall
+rm -rf package/passwall
+rm -rf package/luci-app-passwall
+git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall-packages package/openwrt-passwall
+git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall package/luci-app-passwall
+git_sparse_clone master https://github.com/vernesong/OpenClash luci-app-openclash
+
+git clone --depth=1 https://github.com/ximiTech/luci-app-msd_lite package/luci-app-msd_lite
+git clone --depth=1 https://github.com/ximiTech/msd_lite package/msd_lite
+
+# 修改本地时间格式
+sed -i 's/os.date()/os.date("%a %Y-%m-%d %H:%M:%S")/g' package/lean/autocore/files/*/index.htm
+
+# 修改版本为编译日期
+date_version=$(date +"%y.%m.%d")
+orig_version=$(cat "package/lean/default-settings/files/zzz-default-settings" | grep DISTRIB_REVISION= | awk -F "'" '{print $2}')
+sed -i "s/${orig_version}/R${date_version} /g" package/lean/default-settings/files/zzz-default-settings
+
+# 在线用户
+git_sparse_clone main https://github.com/haiibo/packages luci-app-onliner
+sed -i '$i uci set nlbwmon.@nlbwmon[0].refresh_interval=2s' package/lean/default-settings/files/zzz-default-settings
+sed -i '$i uci commit nlbwmon' package/lean/default-settings/files/zzz-default-settings
+chmod 755 package/luci-app-onliner/root/usr/share/onliner/setnlbw.sh
